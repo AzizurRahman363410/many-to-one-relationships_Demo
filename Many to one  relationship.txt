@@ -1,0 +1,102 @@
+Question: 
+
+I'm trying to do a simple query in which I retrieve all products from all payments from a single user object.
+
+Here is the relevant model:
+
+class Payment(models.Model):
+    user = models.ForeignKey(User, related_name="payments")
+    product= models.ForeignKey(Product)
+...
+
+Initially I have one user object called user. I can retrieve all payments with 
+
+--> all_payments = user.payments.all().
+
+How can I extend the query to retrieve all the products associated with all_payments to get a list of all products the user has paid for? In the template I' like to loop through the list with {%for item in products%} without need to pass any payment lists into template.
+
+
+Answer: 
+
+
+##You can use prefetch_related
+
+-->>   user.payments.all().prefetch_related('product')
+
+## To display in a template you can continue to use your all_payments
+
+{% for payment in all_payments %}
+    {% for p in payment.product %}
+          {# do something with the product p #}
+    {% endfor %}
+{% endfor %}
+
+******************************************************************************
+###############Tips for Using Django's ManyToManyField##########
+from django.db import models 
+
+
+class Pizza(models.Model):
+
+    name = models.CharField(max_length=30)
+    toppings = models.ManyToManyField('Topping')
+
+    def __str__(self):
+        return self.name
+
+
+class Topping(models.Model):
+
+    name = models.CharField(max_length=30)
+
+    def __str__(self):
+        return self.name
+##Both objects must exist in the database
+>> hawaiian_pizza = Pizza.objects.create(name='Hawaiian')
+>> pineapple = Topping(name='pineapple')
+>> pineapple.save() 
+
+>> hawaiian_pizza.toppings.add(pineapple)
+>> hawaiian_pizza.toppings.all()
+<QuerySet [<Topping: pineapple>]>
+
+Or,
+>> pepperoni = Topping.objects.create(name='pepperoni')
+>> hawaiian_pizza = Pizza.objects.create(name='Hawaiian')
+>> hawaiian_pizza.toppings.add(pepperoni)
+>> hawaiian_pizza.toppings.all()
+<QuerySet [<Topping: pineapple>]>
+
+##To retrieve the stuff in a ManyToManyField, you have to use *_set ...##
+>> hawaiian_pizza.toppings.all()
+<QuerySet [<Topping: pineapple>, <Topping: Canadian bacon>]>
+---------------------------------------------------------------
+## #####for getting 'Canadian bacon' pizza name use *set ###################
+>> canadian_bacon.pizza_set.all()
+<QuerySet [<Pizza: Hawaiian>]>
+or 
+## unless you add the related_name option to the field 
+class Pizza(models.Model):
+    toppings = models.ManyToManyField('Topping', related_name='pizzas')
+
+>> canadian_bacon.pizzas.all()
+<QuerySet [<Pizza: Hawaiian>]>
+----------------------------------------------
+
+######### You can add things from both sides of the relationship.##########>> cheese_pizza = Pizza.objects.create(name='Cheese')
+>> mozzarella = Topping.objects.create(name='mozzarella')
+>> mozzarella.pizzas.add(cheese_pizza)
+>> mozzarella.pizzas.all()
+<QuerySet [<Pizza: Cheese>]>
+'note': here we adding Pizza using related name pizzas
+
+
+----------------------------------------------------------------
+#########You can query the items in the many-to-many set from both sides###########
+>> Pizza.objects.filter(toppings__name__startswith='p')
+<QuerySet [<Pizza: Pepperoni Pizza>, <Pizza: Hawaiian Pizza>]>
+or, 
+>> Topping.objects.filter(pizzas__name__contains='Hawaiian')
+<QuerySet [<Topping: pineapple>, <Topping: Canadian bacon>]>
+
+*************** for more visit: https://www.revsys.com/tidbits/tips-using-djangos-manytomanyfield/
